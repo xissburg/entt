@@ -1,7 +1,7 @@
 # can use variables like {build} and {branch}
 version: 1.0.{build}
 
-image: Visual Studio 2017
+image: Visual Studio 2015
 
 environment:
   BUILD_DIR: "%APPVEYOR_BUILD_FOLDER%\\build"
@@ -14,7 +14,7 @@ configuration:
 
 before_build:
   - cd %BUILD_DIR%
-  - cmake .. -DCMAKE_CXX_FLAGS=/D_SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING -G"Visual Studio 15 2017"
+  - cmake .. -DCMAKE_CXX_FLAGS=/D_SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING -G"Visual Studio 14 2015"
 
 build:
   parallel: true
