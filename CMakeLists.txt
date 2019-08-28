@@ -163,64 +163,30 @@ export(PACKAGE EnTT)
 # Tests
 #
 
-option(BUILD_TESTING "Enable testing with ctest." OFF)
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
 
-if(BUILD_TESTING)
-    set(THREADS_PREFER_PTHREAD_FLAG ON)
-    find_package(Threads REQUIRED)
+option(FIND_GTEST_PACKAGE "Enable finding gtest package." OFF)
 
-    option(FIND_GTEST_PACKAGE "Enable finding gtest package." OFF)
-
-    if(FIND_GTEST_PACKAGE)
-        find_package(GTest REQUIRED)
-    else()
-        # gtest, gtest_main, gmock and gmock_main targets are available from now on
-        set(GOOGLETEST_DEPS_DIR ${EnTT_SOURCE_DIR}/deps/googletest)
-        configure_file(${EnTT_SOURCE_DIR}/cmake/in/googletest.in ${GOOGLETEST_DEPS_DIR}/CMakeLists.txt)
-        execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" . WORKING_DIRECTORY ${GOOGLETEST_DEPS_DIR})
-        execute_process(COMMAND ${CMAKE_COMMAND} --build . WORKING_DIRECTORY ${GOOGLETEST_DEPS_DIR})
-        set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-        add_subdirectory(${GOOGLETEST_DEPS_DIR}/src ${GOOGLETEST_DEPS_DIR}/build)
-        target_compile_features(gmock_main PRIVATE $<TARGET_PROPERTY:EnTT,INTERFACE_COMPILE_FEATURES>)
-        target_compile_features(gmock PRIVATE $<TARGET_PROPERTY:EnTT,INTERFACE_COMPILE_FEATURES>)
-        add_library(GTest::Main ALIAS gtest_main)
-    endif()
-
-    option(BUILD_BENCHMARK "Build benchmark." OFF)
-    option(BUILD_LIB "Build lib example." OFF)
-    option(BUILD_MOD "Build mod example." OFF)
-    option(BUILD_SNAPSHOT "Build snapshot example." OFF)
-
-    enable_testing()
-    add_subdirectory(test)
+if(FIND_GTEST_PACKAGE)
+    find_package(GTest REQUIRED)
+else()
+    # gtest, gtest_main, gmock and gmock_main targets are available from now on
+    set(GOOGLETEST_DEPS_DIR ${EnTT_SOURCE_DIR}/deps/googletest)
+    configure_file(${EnTT_SOURCE_DIR}/cmake/in/googletest.in ${GOOGLETEST_DEPS_DIR}/CMakeLists.txt)
+    execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" . WORKING_DIRECTORY ${GOOGLETEST_DEPS_DIR})
+    execute_process(COMMAND ${CMAKE_COMMAND} --build . WORKING_DIRECTORY ${GOOGLETEST_DEPS_DIR})
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    add_subdirectory(${GOOGLETEST_DEPS_DIR}/src ${GOOGLETEST_DEPS_DIR}/build)
+    target_compile_features(gmock_main PRIVATE $<TARGET_PROPERTY:EnTT,INTERFACE_COMPILE_FEATURES>)
+    target_compile_features(gmock PRIVATE $<TARGET_PROPERTY:EnTT,INTERFACE_COMPILE_FEATURES>)
+    add_library(GTest::Main ALIAS gtest_main)
 endif()
 
-#
-# Documentation
-#
+option(BUILD_BENCHMARK "Build benchmark." OFF)
+option(BUILD_LIB "Build lib example." OFF)
+option(BUILD_MOD "Build mod example." OFF)
+option(BUILD_SNAPSHOT "Build snapshot example." OFF)
 
-option(BUILD_DOCS "Enable building with documentation." OFF)
-
-if(BUILD_DOCS)
-    find_package(Doxygen 1.8)
-
-    if(DOXYGEN_FOUND)
-        add_subdirectory(docs)
-    endif()
-endif()
-
-#
-# AOB
-#
-
-add_custom_target(
-    entt_aob
-    SOURCES
-        appveyor.yml
-        AUTHORS
-        CONTRIBUTING.md
-        LICENSE
-        README.md
-        TODO
-        .travis.yml
-)
+enable_testing()
+add_subdirectory(test)
