@@ -17,12 +17,8 @@
 * built-in support for dual (or N-) buffering
 * allow for custom stomp functions
 * deprecate/replace snapshot
-* experiment with hi-bitset for views
-* pointer payload optimization for delegates
+* hibitset, views and non-owning groups
 * custom (decoupled) pools ==> double buffering, shared components, multi-model
-* make meta work across boundaries
-  - inline variables are fine here, only the head represents a problem
-  - we should always resolve by looking into the list of types when working across boundaries, no direct resolve
 * snapshot rework/deprecation
   - create(hint: entity) -> force-create
   - assign<T...>(first, last)
@@ -33,4 +29,10 @@
 * multi component registry::remove and some others?
   - auto foo(It first, It last = entity_type{null})
 * range based registry::remove and some others?
-* nested groups: AB/ABC/ABCD/... (hints: sort, check functions)
+* add examples (and credits) from @alanjfs :)
+* explore the possibility to wrap other backend with a XHandler component
+* use [[nodiscard]] consistently for safety purposes
+* static reflection, hint: template<> meta_type_t<Type>: meta_descriptor<name, func..., props..., etc...>
+
+* make meta work across boundaries
+  - extend and make factory::prop more flexible

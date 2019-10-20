@@ -19,7 +19,8 @@ Type get(Type &prop) {
 
 enum class properties {
     prop_int,
-    prop_bool
+    prop_bool,
+    key_only
 };
 
 struct empty_type {
@@ -141,86 +142,122 @@ struct concrete_type: an_abstract_type, another_abstract_type {
     void h(char c) override { j = c; }
 };
 
-struct Meta: public ::testing::Test {
+struct Meta: ::testing::Test {
     static void SetUpTestCase() {
-        entt::reflect<double>().conv<int>();
+        entt::meta<double>().conv<int>();
 
-        entt::reflect<char>("char"_hs, std::make_pair(properties::prop_int, 42))
+        entt::meta<char>()
+                .type("char"_hs)
+                    .prop(properties::prop_int, 42)
                 .data<&set<char>, &get<char>>("value"_hs);
 
-        entt::reflect<properties>()
+        entt::meta<properties>()
                 .data<properties::prop_bool>("prop_bool"_hs)
+                    .prop(properties::prop_int, 0)
                 .data<properties::prop_int>("prop_int"_hs)
+                    .prop(std::make_pair(properties::prop_bool, true))
+                    .prop(std::make_pair(properties::prop_int, 0))
+                    .prop(properties::key_only)
+                .data<properties::key_only>("key_only"_hs)
+                    .prop(properties::key_only)
                 .data<&set<properties>, &get<properties>>("value"_hs);
 
-        entt::reflect<unsigned int>().data<0u>("min"_hs).data<100u>("max"_hs);
+        entt::meta<unsigned int>().data<0u>("min"_hs).data<100u>("max"_hs);
 
-        entt::reflect<base_type>("base"_hs);
+        entt::meta<base_type>()
+                .type("base"_hs);
 
-        entt::reflect<derived_type>("derived"_hs, std::make_pair(properties::prop_int, 99))
+        entt::meta<derived_type>()
+                .type("derived"_hs)
+                    .prop(properties::prop_int, 99)
                 .base<base_type>()
-                .ctor<const base_type &, int, char>(std::make_pair(properties::prop_bool, false))
-                .ctor<&derived_factory>(std::make_pair(properties::prop_int, 42))
+                .ctor<const base_type &, int, char>()
+                    .prop(properties::prop_bool, false)
+                .ctor<&derived_factory>()
+                    .prop(properties::prop_int, 42)
                 .conv<&derived_type::f>()
                 .conv<&derived_type::g>();
 
-        entt::reflect<empty_type>("empty"_hs)
+        entt::meta<empty_type>()
+                .type("empty"_hs)
                 .dtor<&empty_type::destroy>();
 
-        entt::reflect<fat_type>("fat"_hs)
+        entt::meta<fat_type>()
+                .type("fat"_hs)
                 .base<empty_type>()
                 .dtor<&fat_type::destroy>();
 
-        entt::reflect<data_type>("data"_hs)
-                .data<&data_type::i, entt::as_alias_t>("i"_hs, std::make_pair(properties::prop_int, 0))
-                .data<&data_type::j>("j"_hs, std::make_pair(properties::prop_int, 1))
-                .data<&data_type::h>("h"_hs, std::make_pair(properties::prop_int, 2))
-                .data<&data_type::k>("k"_hs, std::make_pair(properties::prop_int, 3))
+        entt::meta<data_type>()
+                .type("data"_hs)
+                .data<&data_type::i, entt::as_alias_t>("i"_hs)
+                    .prop(properties::prop_int, 0)
+                .data<&data_type::j>("j"_hs)
+                    .prop(properties::prop_int, 1)
+                .data<&data_type::h>("h"_hs)
+                    .prop(properties::prop_int, 2)
+                .data<&data_type::k>("k"_hs)
+                    .prop(properties::prop_int, 3)
                 .data<&data_type::empty>("empty"_hs)
                 .data<&data_type::v, entt::as_void_t>("v"_hs);
 
-        entt::reflect<array_type>("array"_hs)
+        entt::meta<array_type>()
+                .type("array"_hs)
                 .data<&array_type::global>("global"_hs)
                 .data<&array_type::local>("local"_hs);
 
-        entt::reflect<func_type>("func"_hs)
+        entt::meta<func_type>()
+                .type("func"_hs)
                 .func<entt::overload<int(const base_type &, int, int)>(&func_type::f)>("f3"_hs)
-                .func<entt::overload<int(int, int)>(&func_type::f)>("f2"_hs, std::make_pair(properties::prop_bool, false))
-                .func<entt::overload<int(int) const>(&func_type::f)>("f1"_hs, std::make_pair(properties::prop_bool, false))
-                .func<&func_type::g>("g"_hs, std::make_pair(properties::prop_bool, false))
-                .func<&func_type::h>("h"_hs, std::make_pair(properties::prop_bool, false))
-                .func<&func_type::k>("k"_hs, std::make_pair(properties::prop_bool, false))
+                .func<entt::overload<int(int, int)>(&func_type::f)>("f2"_hs)
+                    .prop(properties::prop_bool, false)
+                .func<entt::overload<int(int) const>(&func_type::f)>("f1"_hs)
+                    .prop(properties::prop_bool, false)
+                .func<&func_type::g>("g"_hs)
+                    .prop(properties::prop_bool, false)
+                .func<&func_type::h>("h"_hs)
+                    .prop(properties::prop_bool, false)
+                .func<&func_type::k>("k"_hs)
+                    .prop(properties::prop_bool, false)
                 .func<&func_type::v, entt::as_void_t>("v"_hs)
                 .func<&func_type::a, entt::as_alias_t>("a"_hs);
 
-        entt::reflect<setter_getter_type>("setter_getter"_hs)
+        entt::meta<setter_getter_type>()
+                .type("setter_getter"_hs)
                 .data<&setter_getter_type::static_setter, &setter_getter_type::static_getter>("x"_hs)
                 .data<&setter_getter_type::setter, &setter_getter_type::getter>("y"_hs)
                 .data<&setter_getter_type::static_setter, &setter_getter_type::getter>("z"_hs)
                 .data<&setter_getter_type::setter_with_ref, &setter_getter_type::getter_with_ref>("w"_hs);
 
-        entt::reflect<an_abstract_type>("an_abstract_type"_hs, std::make_pair(properties::prop_bool, false))
+        entt::meta<an_abstract_type>()
+                .type("an_abstract_type"_hs)
+                    .prop(properties::prop_bool, false)
                 .data<&an_abstract_type::i>("i"_hs)
                 .func<&an_abstract_type::f>("f"_hs)
                 .func<&an_abstract_type::g>("g"_hs);
 
-        entt::reflect<another_abstract_type>("another_abstract_type"_hs, std::make_pair(properties::prop_int, 42))
+        entt::meta<another_abstract_type>()
+                .type("another_abstract_type"_hs)
+                    .prop(properties::prop_int, 42)
                 .data<&another_abstract_type::j>("j"_hs)
                 .func<&another_abstract_type::h>("h"_hs);
 
-        entt::reflect<concrete_type>("concrete"_hs)
+        entt::meta<concrete_type>()
+                .type("concrete"_hs)
                 .base<an_abstract_type>()
                 .base<another_abstract_type>()
                 .func<&concrete_type::f>("f"_hs);
     }
 
     static void SetUpAfterUnregistration() {
-        entt::reflect<double>().conv<float>();
+        entt::meta<double>().conv<float>();
 
-        entt::reflect<derived_type>("my_type"_hs, std::make_pair(properties::prop_bool, false))
+        entt::meta<derived_type>()
+                .type("my_type"_hs)
+                    .prop(properties::prop_bool, false)
                 .ctor<>();
 
-        entt::reflect<another_abstract_type>("your_type"_hs)
+        entt::meta<another_abstract_type>()
+                .type("your_type"_hs)
                 .data<&another_abstract_type::j>("a_data_member"_hs)
                 .func<&another_abstract_type::h>("a_member_function"_hs);
     }
@@ -1968,23 +2005,51 @@ TEST_F(Meta, Variables) {
     ASSERT_EQ(c, 'x');
 }
 
-TEST_F(Meta, Unregister) {
-    ASSERT_FALSE(entt::unregister<float>());
-    ASSERT_TRUE(entt::unregister<double>());
-    ASSERT_TRUE(entt::unregister<char>());
-    ASSERT_TRUE(entt::unregister<properties>());
-    ASSERT_TRUE(entt::unregister<unsigned int>());
-    ASSERT_TRUE(entt::unregister<base_type>());
-    ASSERT_TRUE(entt::unregister<derived_type>());
-    ASSERT_TRUE(entt::unregister<empty_type>());
-    ASSERT_TRUE(entt::unregister<fat_type>());
-    ASSERT_TRUE(entt::unregister<data_type>());
-    ASSERT_TRUE(entt::unregister<func_type>());
-    ASSERT_TRUE(entt::unregister<setter_getter_type>());
-    ASSERT_TRUE(entt::unregister<an_abstract_type>());
-    ASSERT_TRUE(entt::unregister<another_abstract_type>());
-    ASSERT_TRUE(entt::unregister<concrete_type>());
-    ASSERT_FALSE(entt::unregister<double>());
+TEST_F(Meta, SharedProperties) {
+    const auto type = entt::resolve<properties>();
+    const auto prop_bool = type.data("prop_bool"_hs);
+    const auto prop_int = type.data("prop_int"_hs);
+
+    ASSERT_TRUE(prop_bool.prop(properties::prop_int));
+    ASSERT_FALSE(prop_bool.prop(properties::prop_bool));
+
+    ASSERT_TRUE(prop_int.prop(properties::prop_int));
+    ASSERT_TRUE(prop_int.prop(properties::prop_bool));
+}
+
+TEST_F(Meta, KeyOnlyProperties) {
+    const auto type = entt::resolve<properties>();
+    const auto prop = type.data("key_only"_hs).prop(properties::key_only);
+
+    ASSERT_TRUE(prop);
+    ASSERT_TRUE(prop.key());
+    ASSERT_EQ(prop.key().type(), entt::resolve<properties>());
+    ASSERT_EQ(prop.key().cast<properties>(), properties::key_only);
+    ASSERT_FALSE(prop.value());
+}
+
+TEST_F(Meta, Reset) {
+    ASSERT_NE(*entt::internal::meta_info<>::global, nullptr);
+    ASSERT_NE(entt::internal::meta_info<>::local, nullptr);
+
+    entt::meta<char>().reset();
+    entt::meta<concrete_type>().reset();
+    entt::meta<setter_getter_type>().reset();
+    entt::meta<fat_type>().reset();
+    entt::meta<data_type>().reset();
+    entt::meta<func_type>().reset();
+    entt::meta<array_type>().reset();
+    entt::meta<double>().reset();
+    entt::meta<properties>().reset();
+    entt::meta<base_type>().reset();
+    entt::meta<derived_type>().reset();
+    entt::meta<empty_type>().reset();
+    entt::meta<an_abstract_type>().reset();
+    entt::meta<another_abstract_type>().reset();
+    entt::meta<unsigned int>().reset();
+
+    ASSERT_EQ(*entt::internal::meta_info<>::global, nullptr);
+    ASSERT_EQ(entt::internal::meta_info<>::local, nullptr);
 
     ASSERT_FALSE(entt::resolve("char"_hs));
     ASSERT_FALSE(entt::resolve("base"_hs));

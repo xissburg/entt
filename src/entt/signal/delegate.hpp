@@ -27,20 +27,28 @@ template<typename Ret, typename... Args>
 auto to_function_pointer(Ret(*)(Args...)) -> Ret(*)(Args...);
 
 
-template<typename Ret, typename... Args, typename Type, typename Payload, typename = std::enable_if_t<std::is_convertible_v<Payload &, Type &>>>
-auto to_function_pointer(Ret(*)(Type &, Args...), Payload &) -> Ret(*)(Args...);
+template<typename Ret, typename... Args, typename Type, typename Payload, typename = std::enable_if_t<std::is_convertible_v<const Payload *, const Type *>>>
+auto to_function_pointer(Ret(*)(Type &, Args...), const Payload *) -> Ret(*)(Args...);
+
+
+template<typename Ret, typename... Args, typename Type, typename Payload, typename = std::enable_if_t<std::is_convertible_v<const Payload *, const Type *>>>
+auto to_function_pointer(Ret(*)(Type *, Args...), const Payload *) -> Ret(*)(Args...);
 
 
 template<typename Class, typename Ret, typename... Args>
-auto to_function_pointer(Ret(Class:: *)(Args...), const Class &) -> Ret(*)(Args...);
+auto to_function_pointer(Ret(Class:: *)(Args...), const Class *) -> Ret(*)(Args...);
 
 
 template<typename Class, typename Ret, typename... Args>
-auto to_function_pointer(Ret(Class:: *)(Args...) const, const Class &) -> Ret(*)(Args...);
+auto to_function_pointer(Ret(Class:: *)(Args...) const, const Class *) -> Ret(*)(Args...);
 
 
 template<typename Class, typename Type>
-auto to_function_pointer(Type Class:: *, const Class &) -> Type(*)();
+auto to_function_pointer(Type Class:: *, const Class *) -> Type(*)();
+
+
+template<typename... Type>
+using to_function_pointer_t = decltype(internal::to_function_pointer(std::declval<Type>()...));
 
 
 template<typename>
@@ -120,16 +128,21 @@ class delegate<Ret(Args...)> {
         data = &value_or_instance;
 
         fn = [](const void *payload, std::tuple<Args &&...> args) -> Ret {
-            Type *curr = nullptr;
-
-            if constexpr(std::is_const_v<Type>) {
-                curr = static_cast<Type *>(payload);
-            } else {
-                curr = static_cast<Type *>(const_cast<void *>(payload));
-            }
-
+            Type *curr = static_cast<Type *>(const_cast<std::conditional_t<std::is_const_v<Type>, const void *, void *>>(payload));
             // Ret(...) makes void(...) eat the return values to avoid errors
             return Ret(std::invoke(Candidate, *curr, std::forward<std::tuple_element_t<Index, std::tuple<Args...>>>(std::get<Index>(args))...));
+        };
+    }
+
+    template<auto Candidate, typename Type, std::size_t... Index>
+    void connect(Type *value_or_instance, std::index_sequence<Index...>) ENTT_NOEXCEPT {
+        static_assert(std::is_invocable_r_v<Ret, decltype(Candidate), Type *, std::tuple_element_t<Index, std::tuple<Args...>>...>);
+        data = value_or_instance;
+
+        fn = [](const void *payload, std::tuple<Args &&...> args) -> Ret {
+            Type *curr = static_cast<Type *>(const_cast<std::conditional_t<std::is_const_v<Type>, const void *, void *>>(payload));
+            // Ret(...) makes void(...) eat the return values to avoid errors
+            return Ret(std::invoke(Candidate, curr, std::forward<std::tuple_element_t<Index, std::tuple<Args...>>>(std::get<Index>(args))...));
         };
     }
 
@@ -168,12 +181,26 @@ public:
     }
 
     /**
+     * @brief Constructs a delegate and connects a member for a given instance
+     * or a free function with payload.
+     * @tparam Candidate Member or free function to connect to the delegate.
+     * @tparam Type Type of class or type of payload.
+     * @param value_or_instance A valid pointer that fits the purpose.
+     */
+    template<auto Candidate, typename Type>
+    delegate(connect_arg_t<Candidate>, Type *value_or_instance) ENTT_NOEXCEPT
+        : delegate{}
+    {
+        connect<Candidate>(value_or_instance);
+    }
+
+    /**
      * @brief Connects a free function to a delegate.
      * @tparam Function A valid free function pointer.
      */
     template<auto Function>
     void connect() ENTT_NOEXCEPT {
-        constexpr auto extent = internal::function_extent_v<decltype(internal::to_function_pointer(std::declval<decltype(Function)>()))>;
+        constexpr auto extent = internal::function_extent_v<internal::to_function_pointer_t<decltype(Function)>>;
         connect<Function>(std::make_index_sequence<extent>{});
     }
 
@@ -194,7 +221,28 @@ public:
      */
     template<auto Candidate, typename Type>
     void connect(Type &value_or_instance) ENTT_NOEXCEPT {
-        constexpr auto extent = internal::function_extent_v<decltype(internal::to_function_pointer(std::declval<decltype(Candidate)>(), value_or_instance))>;
+        constexpr auto extent = internal::function_extent_v<internal::to_function_pointer_t<decltype(Candidate), Type *>>;
+        connect<Candidate>(value_or_instance, std::make_index_sequence<extent>{});
+    }
+
+    /**
+     * @brief Connects a member function for a given instance or a free function
+     * with payload to a delegate.
+     *
+     * The delegate isn't responsible for the connected object or the payload.
+     * Users must always guarantee that the lifetime of the instance overcomes
+     * the one  of the delegate.<br/>
+     * When used to connect a free function with payload, its signature must be
+     * such that the instance is the first argument before the ones used to
+     * define the delegate itself.
+     *
+     * @tparam Candidate Member or free function to connect to the delegate.
+     * @tparam Type Type of class or type of payload.
+     * @param value_or_instance A valid pointer that fits the purpose.
+     */
+    template<auto Candidate, typename Type>
+    void connect(Type *value_or_instance) ENTT_NOEXCEPT {
+        constexpr auto extent = internal::function_extent_v<internal::to_function_pointer_t<decltype(Candidate), Type *>>;
         connect<Candidate>(value_or_instance, std::make_index_sequence<extent>{});
     }
 
@@ -283,7 +331,7 @@ bool operator!=(const delegate<Ret(Args...)> &lhs, const delegate<Ret(Args...)> 
  */
 template<auto Function>
 delegate(connect_arg_t<Function>) ENTT_NOEXCEPT
--> delegate<std::remove_pointer_t<decltype(internal::to_function_pointer(Function))>>;
+-> delegate<std::remove_pointer_t<internal::to_function_pointer_t<decltype(Function)>>>;
 
 
 /**
@@ -292,13 +340,26 @@ delegate(connect_arg_t<Function>) ENTT_NOEXCEPT
  * It allows to deduce the function type of the delegate directly from a member
  * or a free function with payload provided to the constructor.
  *
- * @param value_or_instance A valid reference that fits the purpose.
  * @tparam Candidate Member or free function to connect to the delegate.
  * @tparam Type Type of class or type of payload.
  */
 template<auto Candidate, typename Type>
-delegate(connect_arg_t<Candidate>, Type &value_or_instance) ENTT_NOEXCEPT
--> delegate<std::remove_pointer_t<decltype(internal::to_function_pointer(Candidate, value_or_instance))>>;
+delegate(connect_arg_t<Candidate>, Type &) ENTT_NOEXCEPT
+-> delegate<std::remove_pointer_t<internal::to_function_pointer_t<decltype(Candidate), Type *>>>;
+
+
+/**
+ * @brief Deduction guide.
+ *
+ * It allows to deduce the function type of the delegate directly from a member
+ * or a free function with payload provided to the constructor.
+ *
+ * @tparam Candidate Member or free function to connect to the delegate.
+ * @tparam Type Type of class or type of payload.
+ */
+template<auto Candidate, typename Type>
+delegate(connect_arg_t<Candidate>, Type *) ENTT_NOEXCEPT
+-> delegate<std::remove_pointer_t<internal::to_function_pointer_t<decltype(Candidate), Type *>>>;
 
 
 }
