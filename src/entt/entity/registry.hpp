@@ -1634,7 +1634,8 @@ public:
      *
      * @return A temporary object to use to take snasphosts.
      */
-    entt::basic_snapshot<Entity> snapshot() const ENTT_NOEXCEPT {
+    template<typename EntityMap = void>
+    entt::basic_snapshot<Entity, EntityMap> snapshot(const EntityMap* map = nullptr) const ENTT_NOEXCEPT {
         using follow_fn_type = entity_type(const basic_registry &, const entity_type);
 
         const auto head = to_integer(destroyed);
@@ -1647,7 +1648,7 @@ public:
             return entity_type{curr | (to_integer(others[curr]) & (traits_type::version_mask << traits_type::entity_shift))};
         };
 
-        return { this, seed, follow };
+        return { this, seed, follow, map };
     }
 
     /**

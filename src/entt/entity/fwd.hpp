@@ -34,7 +34,7 @@ template <typename>
 struct basic_actor;
 
 /*! @class basic_snapshot */
-template<typename>
+template<typename, typename>
 class basic_snapshot;
 
 /*! @class basic_snapshot_loader */
@@ -61,7 +61,7 @@ using observer = basic_observer<entity>;
 using actor = basic_actor<entity>;
 
 /*! @brief Alias declaration for the most common use case. */
-using snapshot = basic_snapshot<entity>;
+using snapshot = basic_snapshot<entity, void>;
 
 /*! @brief Alias declaration for the most common use case. */
 using snapshot_loader = basic_snapshot_loader<entity>;

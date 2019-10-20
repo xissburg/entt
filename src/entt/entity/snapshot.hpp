@@ -25,8 +25,10 @@ namespace entt {
  * output archive.
  *
  * @tparam Entity A valid entity type (see entt_traits for more details).
+ * @tparam EntityMap An optional associative container that maps entities from
+ *         the source to entities in the destination.
  */
-template<typename Entity>
+template<typename Entity, typename EntityMap = void>
 class basic_snapshot {
     /*! @brief A registry is allowed to create snapshots. */
     friend class basic_registry<Entity>;
@@ -34,14 +36,15 @@ class basic_snapshot {
     using follow_fn_type = Entity(const basic_registry<Entity> &, const Entity);
     using traits_type = entt_traits<std::underlying_type_t<Entity>>;
 
-    basic_snapshot(const basic_registry<Entity> *source, Entity init, follow_fn_type *fn) ENTT_NOEXCEPT
+    basic_snapshot(const basic_registry<Entity> *source, Entity init, follow_fn_type *fn, const EntityMap *map = nullptr) ENTT_NOEXCEPT
         : reg{source},
           seed{init},
-          follow{fn}
+          follow{fn},
+          entmap{map}
     {}
 
-    template<typename Component, typename Archive, typename It>
-    void get(Archive &archive, std::size_t sz, It first, It last) const {
+    template<typename Component, typename Archive, typename It, typename... Type, typename... Member>
+    void get(Archive &archive, std::size_t sz, It first, It last, Member Type:: *... member) const {
         archive(typename traits_type::entity_type(sz));
 
         while(first != last) {
@@ -49,16 +52,20 @@ class basic_snapshot {
 
             if(reg->template has<Component>(entt)) {
                 if constexpr(std::is_empty_v<Component>) {
-                    archive(entt);
+                    archive(map(entt));
+                } else if constexpr(std::is_same_v<EntityMap, void>) {
+                    archive(map(entt), reg->template get<Component>(entt));
                 } else {
-                    archive(entt, reg->template get<Component>(entt));
+                    auto instance = reg->template get<Component>(entt);
+                    (update(instance, member), ...);
+                    archive(map(entt), instance);
                 }
             }
         }
     }
 
-    template<typename... Component, typename Archive, typename It, std::size_t... Indexes>
-    void component(Archive &archive, It first, It last, std::index_sequence<Indexes...>) const {
+    template<typename... Component, typename Archive, typename It, std::size_t... Indexes, typename... Type, typename... Member>
+    void component(Archive &archive, It first, It last, std::index_sequence<Indexes...>, Member Type:: *... member) const {
         std::array<std::size_t, sizeof...(Indexes)> size{};
         auto begin = first;
 
@@ -67,7 +74,21 @@ class basic_snapshot {
             ((reg->template has<Component>(entt) ? ++size[Indexes] : size[Indexes]), ...);
         }
 
-        (get<Component>(archive, size[Indexes], first, last), ...);
+        (get<Component>(archive, size[Indexes], first, last, member...), ...);
+    }
+
+    template<typename Other, typename Type, typename Member>
+    void update(Other &instance, Member Type:: *member) const {
+        if constexpr(!std::is_same_v<Other, Type>) {
+            return;
+        } else if constexpr(std::is_same_v<Member, Entity>) {
+            instance.*member = map(instance.*member);
+        } else {
+            // maybe a container? let's try...
+            for(auto &entt: instance.*member) {
+                entt = map(entt);
+            }
+        }
     }
 
 public:
@@ -90,7 +111,7 @@ public:
     template<typename Archive>
     const basic_snapshot & entities(Archive &archive) const {
         archive(typename traits_type::entity_type(reg->alive()));
-        reg->each([&archive](const auto entt) { archive(entt); });
+        reg->each([&archive, this](const auto entt) { archive(map(entt)); });
         return *this;
     }
 
@@ -111,11 +132,11 @@ public:
 
         if(size) {
             auto curr = seed;
-            archive(curr);
+            archive(map(curr));
 
             for(--size; size; --size) {
                 curr = follow(*reg, curr);
-                archive(curr);
+                archive(map(curr));
             }
         }
 
@@ -130,11 +151,14 @@ public:
      *
      * @tparam Component Types of components to serialize.
      * @tparam Archive Type of output archive.
+     * @tparam Type Types of components to update with local counterparts.
+     * @tparam Member Types of members to update with their local counterparts.
      * @param archive A valid reference to an output archive.
+     * @param member Members to update with their local counterparts.
      * @return An object of this type to continue creating the snapshot.
      */
-    template<typename... Component, typename Archive>
-    const basic_snapshot & component(Archive &archive) const {
+    template<typename... Component, typename Archive, typename... Type, typename... Member>
+    const basic_snapshot & component(Archive &archive, Member Type:: *... member) const {
         if constexpr(sizeof...(Component) == 1) {
             const auto sz = reg->template size<Component...>();
             const auto *entities = reg->template data<Component...>();
@@ -145,13 +169,16 @@ public:
                 const auto entt = entities[pos];
 
                 if constexpr(std::is_empty_v<Component...>) {
-                    archive(entt);
+                    archive(map(entt));
                 } else {
-                    archive(entt, reg->template get<Component...>(entt));
+                    //Component instance...;
+                    auto instance = reg->template get<Component...>(entt);
+                    (update(instance, member), ...);
+                    archive(map(entt), instance);
                 }
             };
         } else {
-            (component<Component>(archive), ...);
+            (component<Component>(archive, member...), ...);
         }
 
         return *this;
@@ -166,23 +193,46 @@ public:
      * @tparam Component Types of components to serialize.
      * @tparam Archive Type of output archive.
      * @tparam It Type of input iterator.
+     * @tparam Type Types of components to update with local counterparts.
+     * @tparam Member Types of members to update with their local counterparts.
      * @param archive A valid reference to an output archive.
      * @param first An iterator to the first element of the range to serialize.
      * @param last An iterator past the last element of the range to serialize.
+     * @param member Members to update with their local counterparts. 
      * @return An object of this type to continue creating the snapshot.
      */
-    template<typename... Component, typename Archive, typename It>
-    const basic_snapshot & component(Archive &archive, It first, It last) const {
-        component<Component...>(archive, first, last, std::make_index_sequence<sizeof...(Component)>{});
+    template<typename... Component, typename Archive, typename It, typename... Type, typename... Member>
+    const basic_snapshot & component(Archive &archive, It first, It last, Member Type:: *... member) const {
+        component<Component...>(archive, first, last, std::make_index_sequence<sizeof...(Component)>{}, member...);
         return *this;
+    }
+
+    /**
+     * @brief Returns the identifier to which an entity refers.
+     * @param entt An entity identifier.
+     * @return The alternative identifier if any, the null entity otherwise.
+     */
+    Entity map(Entity entt) const ENTT_NOEXCEPT {
+        if constexpr(std::is_same_v<EntityMap, void>) {
+            return entt;
+        } else {
+            const auto it = entmap->find(entt);
+            Entity other = null;
+
+            if(it != entmap->cend()) {
+                other = it->second;
+            }
+
+            return other;
+        }
     }
 
 private:
     const basic_registry<Entity> *reg;
     const Entity seed;
     follow_fn_type *follow;
+    const EntityMap *entmap;
 };
-
 
 /**
  * @brief Utility class to restore a snapshot as a whole.
@@ -364,10 +414,13 @@ class basic_continuous_loader {
         if(it == remloc.cend()) {
             const auto local = reg->create();
             remloc.emplace(entt, std::make_pair(local, true));
+            locrem[local] = entt;
         } else {
-            remloc[entt].first = reg->valid(remloc[entt].first) ? remloc[entt].first : reg->create();
+            const auto local = reg->valid(remloc[entt].first) ? remloc[entt].first : reg->create();
+            remloc[entt].first = local;
             // set the dirty flag
             remloc[entt].second = true;
+            locrem[local] = entt;
         }
     }
 
@@ -529,6 +582,7 @@ public:
                     reg->destroy(local);
                 }
 
+                locrem.erase(local);
                 it = remloc.erase(it);
             }
         }
@@ -579,8 +633,13 @@ public:
         return other;
     }
 
+    auto snapshot() const ENTT_NOEXCEPT {
+        return reg->snapshot(&locrem);
+    }
+
 private:
     std::unordered_map<entity_type, std::pair<entity_type, bool>> remloc;
+    std::unordered_map<entity_type, entity_type> locrem;
     basic_registry<entity_type> *reg;
 };
 

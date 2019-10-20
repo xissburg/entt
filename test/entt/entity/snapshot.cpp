@@ -514,3 +514,63 @@ TEST(Snapshot, SyncDataMembers) {
     ASSERT_EQ(component.bar, loader.map(parent));
     ASSERT_EQ(component.quux[0], loader.map(child));
 }
+
+TEST(Snapshot, ContinuousLoaderSnapshot) {
+    using traits_type = entt::entt_traits<std::underlying_type_t<entt::entity>>;
+
+    entt::registry src;
+    entt::registry dst;
+
+    entt::continuous_loader loader{dst};
+
+    using storage_type = std::tuple<
+        std::queue<typename traits_type::entity_type>,
+        std::queue<entt::entity>,
+        std::queue<what_a_component>
+    >;
+
+    storage_type storage;
+    output_archive<storage_type> output{storage};
+    input_archive<storage_type> input{storage};
+
+    src.create();
+    src.create();
+
+    src.reset();
+
+    auto parent = src.create();
+    auto child = src.create();
+
+    src.assign<what_a_component>(parent, entt::null);
+    auto& childcomp = src.assign<what_a_component>(child, parent);
+    childcomp.quux.push_back(child);
+
+    src.snapshot().entities(output).component<what_a_component>(output);
+    loader.entities(input).component<what_a_component>(input, &what_a_component::bar, &what_a_component::quux);
+
+    loader.snapshot()
+        .entities(output)
+        .destroyed(output)
+        .component<what_a_component, a_component>(output, &what_a_component::bar, &what_a_component::quux);
+    
+    entt::registry rem;
+    rem.loader()
+        .entities(input)
+        .destroyed(input)
+        .component<what_a_component, a_component>(input);
+
+    ASSERT_EQ(rem.size(), 2);
+
+    ASSERT_TRUE(rem.valid(parent));
+    ASSERT_TRUE(rem.valid(child));
+
+    ASSERT_TRUE(rem.has<what_a_component>(parent));
+    ASSERT_TRUE(rem.has<what_a_component>(child));
+
+    ASSERT_EQ(rem.get<what_a_component>(parent).bar, static_cast<entt::entity>(entt::null));
+
+    const auto &component = rem.get<what_a_component>(child);
+
+    ASSERT_EQ(component.bar, parent);
+    ASSERT_EQ(component.quux[0], child);
+}
