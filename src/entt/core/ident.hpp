@@ -40,6 +40,7 @@ namespace entt {
  */
 template<typename... Types>
 class identifier {
+public:
     using tuple_type = std::tuple<std::decay_t<Types>...>;
 
     template<typename Type, std::size_t... Indexes>
@@ -48,7 +49,6 @@ class identifier {
         return (0 + ... + (std::is_same_v<Type, std::tuple_element_t<Indexes, tuple_type>> ? ENTT_ID_TYPE(Indexes) : ENTT_ID_TYPE{}));
     }
 
-public:
     /*! @brief Unsigned integer type. */
     using identifier_type = ENTT_ID_TYPE;
 
