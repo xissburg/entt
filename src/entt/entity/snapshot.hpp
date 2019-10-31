@@ -632,6 +632,22 @@ public:
 
         return other;
     }
+    
+    /**
+     * @brief Returns the remote identifier to which a local entity refers.
+     * @param entt An entity identifier.
+     * @return The remote identifier if any, the null entity otherwise.
+     */
+    entity_type unmap(entity_type entt) const ENTT_NOEXCEPT {
+        const auto it = locrem.find(entt);
+        entity_type other = null;
+
+        if(it != locrem.cend()) {
+            other = it->second;
+        }
+
+        return other;
+    }
 
     auto snapshot() const ENTT_NOEXCEPT {
         return reg->snapshot(&locrem);
